@@ -32,7 +32,7 @@ def main():
   st.set_page_config( layout = "wide" ,page_title="Text Extraction")
   st.title(""":green[Text Extraction]""")
 
-  st.write("<h3>Upload your flyers below:")
+  st.write("Upload your flyers below:")
   uploaded_files = st.file_uploader("", type="pdf", accept_multiple_files=True)
 
   extract_button = st.button("Extract Content")
