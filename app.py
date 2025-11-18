@@ -8,7 +8,7 @@ from docling.document_converter import DocumentConverter
 import os
 import pandas as pd
 import datetime
-
+import tempfile
 
 ########################################
 # Accessing HF Token
@@ -19,12 +19,33 @@ client = InferenceClient(api_key= hf_token)
 
 # drive.mount('/content/drive')
 
+# # old_logic
+# def convert_pdf_to_markdown(file):
+#   converter = DocumentConverter()
+#   result = converter.convert(file)
+#   md_content = result.document.export_to_markdown()
+#   return md_content
 
-def convert_pdf_to_markdown(file):
-  converter = DocumentConverter()
-  result = converter.convert(file)
-  md_content = result.document.export_to_markdown()
-  return md_content
+def convert_pdf_to_markdown(uploaded_file):
+    # uploaded_file is a streamlit UploadedFile
+    # Save it to a temporary file and pass the path to Docling
+    converter = DocumentConverter()
+
+    # Read bytes from Streamlit UploadedFile
+    file_bytes = uploaded_file.read()
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp.write(file_bytes)
+        tmp_path = tmp.name
+
+    try:
+        result = converter.convert(tmp_path)  # ✅ pass a path (str/Path)
+        md_content = result.document.export_to_markdown()
+    finally:
+        # Clean up the temp file
+        os.unlink(tmp_path)
+
+    return md_content
 
 
 
