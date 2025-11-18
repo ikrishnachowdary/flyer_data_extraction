@@ -129,7 +129,7 @@ def main():
           "role": "user",
           "content": f"please follow the user prompts below {user_prompt}" }]
 
-        completion = client.chat.completions.create(model="Qwen/Qwen2.5-72B-Instruct",
+        completion = client.chat.completions.create(model="Qwen/Qwen2.5-14B-Instruct", # "Qwen/Qwen2.5-72B-Instruct",
                                                     messages=messages,
                                                     # max_tokens=6000,
                                                     temperature=0.0
