@@ -14,7 +14,7 @@ import datetime
 # Accessing HF Token
 ########################################
 # hf_token = userdata.get('HF_TOKEN')
-hf_token = ""
+hf_token = OPENAI_API_KEY
 client = InferenceClient(api_key= hf_token)
 
 # drive.mount('/content/drive')
