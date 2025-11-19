@@ -160,14 +160,214 @@ def main():
 
         st.session_state["response"] = temp_data
 
+        st.write("### Sample 5 rows of Extracted Data")
+        st.write(temp_data.head(5))
+
         if "response" in st.session_state:
           today = datetime.date.today().strftime("%Y-%m-%d")
           col1,col2 = st.columns([4,1])
           with col1:
             download_button = st.download_button("Download CSV", data = temp_data.to_csv(index=False), file_name=f"flyer_data_{today}.csv")
 
-        st.write("### Sample 5 rows of Extracted Data")
-        st.write(temp_data.head(5))
+
+
+        # ========= DATA PREP =========
+        # Work on a copy so we don't mutate session state accidentally
+        temp_data = temp_data.copy()
+        
+        # Ensure expected columns exist
+        expected_cols = ["Brand", "Quantity", "Price"]
+        for col in expected_cols:
+            if col not in temp_data.columns:
+                st.warning(f"Column '{col}' not found in extracted data.")
+                st.stop()
+        
+        # Clean Price column into numeric for analysis
+        temp_data["Price_clean"] = (
+            temp_data["Price"]
+            .astype(str)
+            .str.replace(r"[^\d.,]", "", regex=True)  # remove currency symbols etc.
+            .str.replace(",", "", regex=False)        # remove thousands separators
+            .replace("", "0")                         # avoid empty strings
+            .astype(float)
+        )
+        
+        # ========= SIDEBAR FILTERS =========
+        st.sidebar.title("🔍 Filters")
+        
+        # Brand filter
+        all_brands = sorted(temp_data["Brand"].dropna().unique().tolist())
+        selected_brands = st.sidebar.multiselect(
+            "Filter by brand:",
+            options=all_brands,
+            default=all_brands,  # start with all selected
+        )
+        
+        # Price range filter
+        min_price = float(temp_data["Price_clean"].min())
+        max_price = float(temp_data["Price_clean"].max())
+        
+        price_range = st.sidebar.slider(
+            "Price range (£):",
+            min_value=round(min_price, 2),
+            max_value=round(max_price, 2),
+            value=(round(min_price, 2), round(max_price, 2)),
+        )
+        
+        # Apply filters
+        filtered_data = temp_data[
+            temp_data["Brand"].isin(selected_brands)
+            & temp_data["Price_clean"].between(price_range[0], price_range[1])
+        ]
+        
+        st.markdown("---")
+        st.subheader("📄 Filtered Items")
+        
+        st.caption(
+            f"Showing {len(filtered_data)} item(s) "
+            f"for {len(selected_brands)} brand(s) within £{price_range[0]:.2f} – £{price_range[1]:.2f}"
+        )
+        
+        st.dataframe(filtered_data, use_container_width=True)
+        
+        # Optional: download filtered data
+        today = datetime.date.today().strftime("%Y-%m-%d")
+        st.download_button(
+            "⬇️ Download filtered data as CSV",
+            data=filtered_data.to_csv(index=False),
+            file_name=f"flyer_data_filtered_{today}.csv",
+            mime="text/csv",
+        )
+        
+        # ========= QUICK INSIGHTS =========
+        st.markdown("---")
+        st.subheader("📊 Quick Insights")
+        
+        if not filtered_data.empty:
+            # Top brand (within filters)
+            brand_counts = (
+                filtered_data["Brand"]
+                .value_counts()
+                .reset_index()
+                .rename(columns={"index": "Brand", "Brand": "Count"})
+            )
+        
+            top_brand = brand_counts.iloc[0]
+            col_top, col_total = st.columns(2)
+        
+            with col_top:
+                st.markdown("#### 🏆 Most frequent brand (filtered)")
+                st.metric(
+                    label="Brand",
+                    value=top_brand["Brand"],
+                    delta=f"{int(top_brand['Count'])} items",
+                )
+        
+            with col_total:
+                st.markdown("#### 📦 Total distinct brands (filtered)")
+                st.metric(
+                    label="Unique brands",
+                    value=int(filtered_data["Brand"].nunique()),
+                )
+        
+            with st.expander("See all brands by frequency"):
+                st.dataframe(brand_counts, use_container_width=True)
+        else:
+            st.info("No data available under the current filters to compute brand stats.")
+        
+        # ========= SIZES / QUANTITIES BY BRAND =========
+        st.markdown("#### 📦 Sizes by brand")
+        
+        if not filtered_data.empty:
+            unique_brands_filtered = sorted(filtered_data["Brand"].dropna().unique().tolist())
+        
+            selected_brand_for_sizes = st.selectbox(
+                "Choose a brand to see all available sizes and their counts:",
+                unique_brands_filtered,
+            )
+        
+            brand_subset = filtered_data[filtered_data["Brand"] == selected_brand_for_sizes]
+        
+            size_summary = (
+                brand_subset
+                .groupby("Quantity", dropna=False)
+                .agg(
+                    Count=("Quantity", "size"),
+                    Min_price=("Price_clean", "min"),
+                    Max_price=("Price_clean", "max"),
+                )
+                .reset_index()
+                .sort_values("Count", ascending=False)
+            )
+        
+            size_summary["Min_price"] = size_summary["Min_price"].map(lambda x: f"£{x:.2f}")
+            size_summary["Max_price"] = size_summary["Max_price"].map(lambda x: f"£{x:.2f}")
+        
+            st.write(f"All sizes for **{selected_brand_for_sizes}** (filtered data):")
+            st.dataframe(size_summary, use_container_width=True)
+        else:
+            st.info("No data to display sizes. Try relaxing your filters.")
+        
+        # ========= MOST / LEAST EXPENSIVE ITEMS =========
+        st.markdown("#### 💰 Price extremes (within filters)")
+        
+        if not filtered_data.empty:
+            valid_prices = filtered_data[filtered_data["Price_clean"].notna()]
+            if not valid_prices.empty:
+                max_row = valid_prices.loc[valid_prices["Price_clean"].idxmax()]
+                min_row = valid_prices.loc[valid_prices["Price_clean"].idxmin()]
+        
+                col1, col2 = st.columns(2)
+        
+                with col1:
+                    st.markdown("**Most expensive item**")
+                    st.write(f"Brand: {max_row['Brand']}")
+                    st.write(f"Quantity: {max_row['Quantity']}")
+                    st.write(f"Price: £{max_row['Price_clean']:.2f}")
+        
+                with col2:
+                    st.markdown("**Least expensive item**")
+                    st.write(f"Brand: {min_row['Brand']}")
+                    st.write(f"Quantity: {min_row['Quantity']}")
+                    st.write(f"Price: £{min_row['Price_clean']:.2f}")
+            else:
+                st.info("No valid prices found to compute min/max.")
+        else:
+            st.info("No data available to compute price extremes under current filters.")
+        
+        # ========= SIMPLE CHARTS =========
+        st.markdown("---")
+        st.subheader("📈 Visualizations")
+        
+        if not filtered_data.empty:
+            # Brand frequency bar chart
+            chart_brand_counts = (
+                filtered_data["Brand"]
+                .value_counts()
+                .reset_index()
+                .rename(columns={"index": "Brand", "Brand": "Count"})
+                .sort_values("Count", ascending=False)
+            )
+        
+            st.markdown("##### Brand frequency (filtered)")
+            st.bar_chart(
+                chart_brand_counts.set_index("Brand")["Count"],
+                use_container_width=True,
+            )
+        
+            # Price distribution
+            st.markdown("##### Price distribution (filtered)")
+            st.line_chart(
+                filtered_data["Price_clean"].sort_values().reset_index(drop=True),
+                use_container_width=True,
+            )
+        else:
+            st.info("No data to display charts. Try adjusting the filters.")
+        
+                
+
+
+      
 
 
 
