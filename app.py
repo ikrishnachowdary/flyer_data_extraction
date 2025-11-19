@@ -300,18 +300,25 @@ def main():
         
       if not filtered_data.empty:
           # Brand frequency bar chart
-          chart_brand_counts = ( filtered_data["Brand"].value_counts().reset_index()
-                                .rename(columns={"index": "Brand", "Brand": "Count"})
-                                .sort_values("Count", ascending=False)       )
-        
-          st.markdown("##### Brand frequency (filtered)")
-          st.bar_chart(chart_brand_counts.set_index("Brand")["Count"],
-                use_container_width=True,    )
+          chart_brand_counts = (filtered_data.groupby("Brand", dropna=False).size()
+                                .reset_index(name="Count").sort_values("Count", ascending=False)   )
+
+          if "Brand" in chart_brand_counts.columns and "Count" in chart_brand_counts.columns:
+              st.markdown("##### Brand frequency (filtered)")
+              st.bar_chart(chart_brand_counts.set_index("Brand")["Count"],
+                           use_container_width=True,    )
+          else:
+              st.info("Could not build brand frequency chart because 'Brand'/'Count' columns are missing.")
         
           # Price distribution
           st.markdown("##### Price distribution (filtered)")
-          st.line_chart( filtered_data["Price_clean"].sort_values().reset_index(drop=True),
-                use_container_width=True,      )
+
+          price_series = (filtered_data["Price_clean"].dropna().sort_values().reset_index(drop=True)   )
+
+          if not price_series.empty:
+              st.line_chart(price_series, use_container_width=True)
+          else:
+              st.info("No valid prices available to plot a price distribution.")
       else:
           st.info("No data to display charts. Try adjusting the filters.")
 
