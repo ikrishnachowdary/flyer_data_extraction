@@ -219,23 +219,26 @@ def main():
       st.subheader("📊 Quick Insights")
       if not filtered_data.empty:
           # Top brand (within filters)
-          brand_counts = (filtered_data["Brand"].value_counts().reset_index().rename(columns={"index": "Brand", "Brand": "Count"})  )
+          brand_counts = (filtered_data["Brand"].value_counts().reset_index()  )
 
-          top_brand = brand_counts.iloc[0]
-          col_top, col_total = st.columns(2)
+          brand_counts.columns = ["Brand", "Count"]
 
-          with col_top:
-              st.markdown("#### 🏆 Most frequent brand (filtered)")
-              st.metric(label="Brand", value=top_brand["Brand"],
-                        delta=f"{int(top_brand['Count'])} items", )
+          if not brand_counts.empty:
+              top_brand = brand_counts.iloc[0]
+              col_top, col_total = st.columns(2)
+              with col_top:
+                  st.markdown("#### 🏆 Most frequent brand (filtered)")
+                  st.metric(label="Brand", value=top_brand["Brand"],
+                            delta=f"{int(top_brand['Count'])} items", )
         
-          with col_total:
-              st.markdown("#### 📦 Total distinct brands (filtered)")
-              st.metric(label="Unique brands",
-                    value=int(filtered_data["Brand"].nunique()), )
+              with col_total:
+                  st.markdown("#### 📦 Total distinct brands (filtered)")
+                  st.metric(label="Unique brands",value=int(filtered_data["Brand"].nunique()), )
                
-          with st.expander("See all brands by frequency"):
-              st.dataframe(brand_counts, use_container_width=True)
+              with st.expander("See all brands by frequency"):
+                  st.dataframe(brand_counts, use_container_width=True)
+          else:
+              st.info("No brands found in the filtered data.")
       else:
           st.info("No data available under the current filters to compute brand stats.")
         
